@@ -1,12 +1,12 @@
 import json
 import requests
 from pprint import pprint as pprint
-from os import makedirs as mkdirs
+from os import makedirs as mkdirs, remove as del_file
 from os.path import exists as file_exists, getsize, basename
 from utils import log, download_file, get_remote_filesize, url_split, \
                   replace_extension
 from validators import url as urlvalidate
-import sys, subprocess
+import sys, subprocess, shutil
 
 class CL4Archiver:
     def __init__(self, url):
@@ -77,14 +77,20 @@ class CL4Archiver:
 
     def __convert_media(self, media_path: str):
         target_path = replace_extension(media_path, 'mp4')
+        temporary_path = target_path + "__ffmpeg_tmp.mp4"
+        if file_exists(temporary_path):
+            log(f'cleaning up temporary file from previous run: {temporary_path}')
+            del_file(temporary_path)
         if file_exists(target_path):
             log("file already converted")
             return
         log(f"converting {basename(media_path)}...")
-        command_args = ["ffmpeg", "-i", media_path, target_path]
+        command_args = ["ffmpeg", "-i", media_path, temporary_path]
         proc = subprocess.run(command_args, capture_output=True)
         if proc.returncode:
             log("conversion failed", 4)
+        else:
+            shutil.move(temporary_path, target_path)
 
 
 url = sys.argv.pop()
