@@ -6,7 +6,7 @@ from os.path import exists as file_exists, getsize, basename
 from utils import log, download_file, get_remote_filesize, url_split, \
                   replace_extension
 from validators import url as urlvalidate
-import sys, subprocess, shutil
+import sys, subprocess, shutil, getopt
 
 class CL4Archiver:
     def __init__(self, url):
@@ -34,16 +34,16 @@ class CL4Archiver:
             mkdirs(self.__path, exist_ok=True)
         return self.__path
 
-    def archive(self):
+    def archive(self, convert_media=True):
         log(f"Starting archive of thread: {self.thread} from /{self.board}/")
         if not shutil.which('ffmpeg'):
             log("Cannot convert media because ffmpeg is not installed", 3)
-            
+
         api_data = requests.get(self.url).content
         json_data = json.loads(api_data)
         posts = json_data['posts']
         for post in posts:
-            media_url = self.__download_media(post, True)
+            media_url = self.__download_media(post, convert_media)
 
 
     def __path_for_thread(self):
@@ -96,7 +96,25 @@ class CL4Archiver:
             shutil.move(temporary_path, target_path)
 
 
-url = sys.argv.pop()
+try:
+    args = getopt.getopt(sys.argv[1:], '', ["no-convert", "binpath="])
+except getopt.GetoptError as e:
+    log(e.msg, 4)
+    exit(-1)
 
-c = CL4Archiver(url)
-c.archive()
+
+convert = True
+binpath = None
+
+for opt in args[0]:
+    if opt[0] == '--no-convert':
+        convert = False
+    elif opt[0] == '--binpath':
+        binpath = opt[1]
+
+thread_url = args[1].pop()
+
+
+
+c = CL4Archiver(thread_url)
+c.archive(convert)
