@@ -1,19 +1,35 @@
-import json
-import requests
-from pprint import pprint as pprint
+import sys
+import getopt
+import shutil
+import subprocess
+# from pprint import pprint
 from os import makedirs as mkdirs, remove as del_file
 from os.path import exists as file_exists, getsize, basename
+import json
+import requests
+from validators import url as urlvalidate
 from utils import log, download_file, get_remote_filesize, url_split, \
                   replace_extension
-from validators import url as urlvalidate
-import sys, subprocess, shutil, getopt
 
 class CL4Archiver:
-    def __init__(self, url):
+    def __init__(self, url, binary_path=None):
         if not urlvalidate(url):
             log("No thread url provided", 4)
             return
         self.__path = None
+
+        # clean up and define binary path
+        self.__binary_path = binary_path
+        if self.__binary_path:
+            binary_path = self.__binary_path.rstrip('/')
+            binary_path += '/'
+            self.__binary_path = binary_path
+            log(f"binary path set to {self.__binary_path}")
+        self.__ffmpeg_path = self.__path_for_binary('ffmpeg')
+        if self.__ffmpeg_path:
+            log(f"ffmpeg path set to {self.__ffmpeg_path}")
+        else:
+            log("ffmpeg not found", 3)
 
         # parse url and create API url
         urlsplit = url_split(url)
@@ -36,20 +52,21 @@ class CL4Archiver:
 
     def archive(self, convert_media=True):
         log(f"Starting archive of thread: {self.thread} from /{self.board}/")
-        if not shutil.which('ffmpeg'):
+        if convert_media and not self.__ffmpeg_path:
             log("Cannot convert media because ffmpeg is not installed", 3)
-
+            convert_media = False
         api_data = requests.get(self.url).content
         json_data = json.loads(api_data)
         posts = json_data['posts']
         for post in posts:
-            media_url = self.__download_media(post, convert_media)
+            self.__download_media(post, convert_media)
 
-
-    def __path_for_thread(self):
-        path = f"archives/{self.board}/{self.thread}"
-        mkdirs(path, exist_ok=True)
-        return path
+    def __path_for_binary(self, binary):
+        if self.__binary_path:
+            path = self.__binary_path + binary
+            return path if file_exists(path) else None
+        else:
+            return shutil.which(binary)
 
     def __download_media(self, post, convert_media: bool) -> str:
         if not (ext := post.get('ext')) or not (name := post.get('tim')):
@@ -64,19 +81,20 @@ class CL4Archiver:
             local_size = getsize(path)
             remote_size = get_remote_filesize(url)
             if local_size != remote_size:
-                print_message += " but sizes are different (remote: %s vs local: %s)" % (remote_size, local_size)
+                print_message += " but sizes are different (remote: %s vs local: %s)" \
+                % (remote_size, local_size)
             else:
                 should_download_file = False
                 print_message += " and is complete"
             log(print_message)
         if should_download_file:
-            log(f"Downloading...")
+            log("Downloading...")
             if not download_file(url, path):
                 log("Download failed")
-                return
+                return None
         if convert_media:
             self.__convert_media(path)
-        return
+        return path
 
     def __convert_media(self, media_path: str):
         target_path = replace_extension(media_path, 'mp4')
@@ -88,7 +106,7 @@ class CL4Archiver:
             log("file already converted")
             return
         log(f"converting {basename(media_path)}...")
-        command_args = ["ffmpeg", "-i", media_path, temporary_path]
+        command_args = [self.__ffmpeg_path, "-i", media_path, temporary_path]
         proc = subprocess.run(command_args, capture_output=True)
         if proc.returncode:
             log("conversion failed", 4)
@@ -100,10 +118,10 @@ try:
     args = getopt.getopt(sys.argv[1:], '', ["no-convert", "binpath="])
 except getopt.GetoptError as e:
     log(e.msg, 4)
-    exit(-1)
+    sys.exit(-1)
 
 
-convert = True
+onvert = True
 binpath = None
 
 for opt in args[0]:
@@ -116,5 +134,5 @@ thread_url = args[1].pop()
 
 
 
-c = CL4Archiver(thread_url)
+c = CL4Archiver(thread_url, binpath)
 c.archive(convert)
