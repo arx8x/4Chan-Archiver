@@ -3,15 +3,25 @@ import requests
 from pprint import pprint as pprint
 from os import makedirs as mkdirs
 from os.path import exists as file_exists, getsize
-from utils import log, download_file, get_remote_filesize
+from utils import log, download_file, get_remote_filesize, url_split
+from validators import url as urlvalidate
 import sys
 
 class CL4Archiver:
     def __init__(self, url):
-        self.url = url.replace('boards.4channel.org', 'a.4cdn.org') + '.json'
-        urlsplit = self.url.split('/')
-        self.thread = urlsplit[5]
-        self.board = urlsplit[3]
+        if not urlvalidate(url):
+            log("No thread url provided", 4)
+            return
+        urlsplit = url_split(url)
+        if not url_split or len((urlcomponents := urlsplit.components)) < 3:
+            log("Unable to parse the url", 4)
+            return
+        self.board = urlcomponents[0]
+        self.thread = urlcomponents[2]
+        api_domain = 'a.4cdn.org'
+        components = ['https:/', api_domain] + urlcomponents[:3]
+        api_url = '/'.join(components)
+        self.url = api_url + '.json'
 
     def archive(self):
         log(f"Starting archive of thread: {self.thread} from /{self.board}/")
