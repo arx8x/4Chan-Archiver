@@ -12,6 +12,9 @@ class CL4Archiver:
         if not urlvalidate(url):
             log("No thread url provided", 4)
             return
+        self.__path = None
+
+        # parse url and create API url
         urlsplit = url_split(url)
         if not url_split or len((urlcomponents := urlsplit.components)) < 3:
             log("Unable to parse the url", 4)
@@ -22,6 +25,13 @@ class CL4Archiver:
         components = ['https:/', api_domain] + urlcomponents[:3]
         api_url = '/'.join(components)
         self.url = api_url + '.json'
+
+    @property
+    def path(self):
+        if not self.__path:
+            self.__path = f"archives/{self.board}/{self.thread}"
+            mkdirs(self.__path, exist_ok=True)
+        return self.__path
 
     def archive(self):
         log(f"Starting archive of thread: {self.thread} from /{self.board}/")
@@ -44,8 +54,7 @@ class CL4Archiver:
         filename = f"{name}{ext}"
         url = f"https://i.4cdn.org/{self.board}/{filename}"
         log(f"Media {filename} for post {post.get('no')}")
-        path = self.__path_for_thread()
-        path += f"/{filename}"
+        path = f"{self.path}/{filename}"
         if file_exists(path):
             print_message = "Local file exists and is complete"
             local_size = getsize(path)
