@@ -36,6 +36,9 @@ class CL4Archiver:
 
     def archive(self):
         log(f"Starting archive of thread: {self.thread} from /{self.board}/")
+        if not shutil.which('ffmpeg'):
+            log("Cannot convert media because ffmpeg is not installed", 3)
+            
         api_data = requests.get(self.url).content
         json_data = json.loads(api_data)
         posts = json_data['posts']
