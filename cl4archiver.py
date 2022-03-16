@@ -25,6 +25,8 @@ class CL4Archiver:
         self.board = board
         # create API url
         self.url = f"https://a.4cdn.org/{board}/thread/{thread}.json"
+        self.__headers_store = None
+        self.__post_data_store = None
 
         # clean up and define binary path
         self.__binary_path = binary_path
@@ -40,6 +42,29 @@ class CL4Archiver:
             log("ffmpeg not found", 3)
 
         self.post_file = f"{self.path}/thread.json"
+
+    @property
+    def __headers(self):
+        if not self.__headers_store:
+            r = requests.head(self.url)
+            headers = r.headers
+            headers = {key.lower(): value for key, value in headers.items()}
+            self.__headers_store = headers
+        return self.__headers_store
+
+    @property
+    def __post_data(self):
+        if not self.__post_data_store:
+            try:
+                r = requests.get(self.url)
+                data = r.content
+                self.__post_data_store = json.loads(data)
+            except Exception as e:
+                log(e, 4)
+            finally:
+                if r:
+                    r.close()
+        return self.__post_data_store
 
     @property
     def path(self):
@@ -119,11 +144,11 @@ class CL4Archiver:
 
         api_data = None
         if has_updates or should_write_posts:
-            api_data = requests.get(self.url).content
+            api_data = self.__post_data
             post_file = f"{self.path}/thread.json"
-            with open(post_file, 'wb') as post_file:
+            with open(post_file, 'w') as post_file:
                 log('writing post data', 1)
-                post_file.write(api_data)
+                json.dump(api_data, post_file)
 
         if not has_updates:
             return
@@ -132,9 +157,10 @@ class CL4Archiver:
         if convert_media and not self.__ffmpeg_path:
             log("Cannot convert media because ffmpeg is not installed", 3)
             convert_media = False
-
-        json_data = json.loads(api_data)
-        posts = json_data['posts']
+        if not api_data:
+            log('unable to get post data', 4)
+            return
+        posts = api_data['posts']
         for post in posts:
             if not (ext := post.get('ext')) or not post.get('tim'):
                 # no media in this post
