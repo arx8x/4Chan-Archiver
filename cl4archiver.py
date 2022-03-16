@@ -8,7 +8,7 @@ import requests
 from validators import url as urlvalidate
 from utils import log, download_file, get_remote_filesize, url_split, \
                   replace_extension
-                  
+# TODO: media conversion remove original
 # TODO: Windows support
 # TODO: archive post json
 # TODO: check header to see if post has new content
@@ -19,7 +19,6 @@ from utils import log, download_file, get_remote_filesize, url_split, \
 class CL4Archiver:
     def __init__(self, url, binary_path=None):
         self.__path = None
-
         # parse url and create API url
         if not urlvalidate(url):
             log("No thread url provided", 4)
@@ -55,10 +54,68 @@ class CL4Archiver:
             mkdirs(self.__path, exist_ok=True)
         return self.__path
 
+    def __local_meta(self) -> dict:
+        path = f"{self.path}/meta"
+        if not file_exists(path):
+            return None
+        with open(path, 'r') as meta_file:
+            try:
+                meta = json.load(meta_file)
+                return meta
+            except Exception:
+                return None
+
+    def __is_local_outdated(self, only_peek=False) -> bool:
+        keys_to_check = ['etag', 'last-modified', 'content-length']
+        remote_headers = requests.get(self.url).headers
+        # convert keys to lowercase for case-insensitive comparison
+        remote_headers = {key.lower(): value for key, value in
+                          remote_headers.items()}
+        if not remote_headers:
+            log("Couldn't load remote headers", 3)
+            return True
+
+        def __write():
+            nonlocal remote_headers, self
+            if not only_peek and remote_headers:
+                self.__write_meta(remote_headers)
+
+        # check for local meta
+        meta = self.__local_meta()
+        if not meta:
+            log("local metadata not found", 3)
+            __write()
+            return True
+
+        # compare
+        for key_to_check in keys_to_check:
+            local_val = meta.get(key_to_check)
+            remote_val = remote_headers.get(key_to_check)
+            if not local_val or not remote_val:
+                continue
+            log(f'comparing {key_to_check}')
+            if local_val != remote_val:
+                log(f"key: {key_to_check} didn't match")
+                __write()
+                return True
+        log("remote headers have no change")
+        return False
+
+    def __write_meta(self, headers: dict):
+        path = f"{self.path}/meta"
+        with open(path, 'w') as file:
+            json.dump(headers, file)
+            log("writing local metadata", 1)
+
     def archive(self, convert_media=True, remove_original=False):
         if not self.thread or not self.url:
             log("Instance is not properly initialized")
             return
+
+        if not self.__is_local_outdated():
+            log("thread has no updates")
+            return
+
         log(f"Starting archive of thread: {self.thread} from /{self.board}/")
         if convert_media and not self.__ffmpeg_path:
             log("Cannot convert media because ffmpeg is not installed", 3)
@@ -67,10 +124,13 @@ class CL4Archiver:
         json_data = json.loads(api_data)
         posts = json_data['posts']
         for post in posts:
+            if not (ext := post.get('ext')) or not post.get('tim'):
+                # no media in this post
+                continue
             path = self.__download_media(post)
             if not path:
                 continue
-            if convert_media:
+            if convert_media and ext == '.webm':
                 conv_path = self.__convert_media(path)
                 if conv_path and remove_original:
                     log("removing original file", 2)
