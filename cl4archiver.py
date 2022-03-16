@@ -1,6 +1,6 @@
 import shutil
 import subprocess
-# from pprint import pprint
+from pprint import pprint
 from os import makedirs as mkdirs, remove as del_file
 from os.path import exists as file_exists, getsize, basename
 import json
@@ -8,6 +8,13 @@ import requests
 from validators import url as urlvalidate
 from utils import log, download_file, get_remote_filesize, url_split, \
                   replace_extension
+                  
+# TODO: Windows support
+# TODO: archive post json
+# TODO: check header to see if post has new content
+# TODO: output dir
+# TODO: write file metadata and title
+
 
 class CL4Archiver:
     def __init__(self, url, binary_path=None):
@@ -41,8 +48,6 @@ class CL4Archiver:
         else:
             log("ffmpeg not found", 3)
 
-
-
     @property
     def path(self):
         if not self.__path:
@@ -50,7 +55,7 @@ class CL4Archiver:
             mkdirs(self.__path, exist_ok=True)
         return self.__path
 
-    def archive(self, convert_media=True):
+    def archive(self, convert_media=True, remove_original=False):
         if not self.thread or not self.url:
             log("Instance is not properly initialized")
             return
@@ -62,7 +67,14 @@ class CL4Archiver:
         json_data = json.loads(api_data)
         posts = json_data['posts']
         for post in posts:
-            self.__download_media(post, convert_media)
+            path = self.__download_media(post)
+            if not path:
+                continue
+            if convert_media:
+                conv_path = self.__convert_media(path)
+                if conv_path and remove_original:
+                    log("removing original file", 2)
+                    del_file(path)
 
     def __path_for_binary(self, binary):
         if self.__binary_path:
@@ -71,7 +83,7 @@ class CL4Archiver:
         else:
             return shutil.which(binary)
 
-    def __download_media(self, post, convert_media: bool) -> str:
+    def __download_media(self, post) -> str:
         if not (ext := post.get('ext')) or not (name := post.get('tim')):
             return None
         should_download_file = True
@@ -85,7 +97,7 @@ class CL4Archiver:
             remote_size = get_remote_filesize(url)
             if local_size != remote_size:
                 print_message += " but sizes are different (remote: %s vs local: %s)" \
-                % (remote_size, local_size)
+                    % (remote_size, local_size)
             else:
                 should_download_file = False
                 print_message += " and is complete"
@@ -95,15 +107,14 @@ class CL4Archiver:
             if not download_file(url, path):
                 log("Download failed")
                 return None
-        if convert_media:
-            self.__convert_media(path)
         return path
 
     def __convert_media(self, media_path: str):
         target_path = replace_extension(media_path, 'mp4')
         temporary_path = target_path + "__ffmpeg_tmp.mp4"
         if file_exists(temporary_path):
-            log(f'cleaning up temporary file from previous run: {temporary_path}')
+            log(
+                f'cleaning up temporary file from previous run: {temporary_path}', 2)
             del_file(temporary_path)
         if file_exists(target_path):
             log("file already converted")
@@ -113,5 +124,7 @@ class CL4Archiver:
         proc = subprocess.run(command_args, capture_output=True)
         if proc.returncode:
             log("conversion failed", 4)
+            return None
         else:
             shutil.move(temporary_path, target_path)
+            return target_path
