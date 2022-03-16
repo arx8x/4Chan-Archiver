@@ -2,6 +2,7 @@ import sys
 import getopt
 from cl4archiver import CL4Archiver
 from utils import log
+from validators import url as urlvalidate
 
 
 def main():
@@ -26,7 +27,16 @@ def main():
 
     if args[1]:
         thread_url = args[1].pop()
-        c = CL4Archiver(thread_url, binpath, output_path=output_path)
+        if not thread_url or not urlvalidate(thread_url):
+            log("No thread url provided", 4)
+            sys.exit(-1)
+        urlsplit = thread_url.split('/')
+        if not urlsplit:
+            log("Unable to parse the url", 4)
+            sys.exit(-1)
+        board = urlsplit[3]
+        thread = urlsplit[5]
+        c = CL4Archiver(board, thread, binpath, output_path=output_path)
         c.archive(convert)
 
 

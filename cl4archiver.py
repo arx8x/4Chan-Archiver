@@ -5,7 +5,6 @@ from os import makedirs as mkdirs, remove as del_file
 from os.path import exists as file_exists, getsize, basename
 import json
 import requests
-from validators import url as urlvalidate
 from utils import log, download_file, get_remote_filesize, url_split, \
                   replace_extension
 # TODO: media conversion remove original
@@ -17,23 +16,15 @@ from utils import log, download_file, get_remote_filesize, url_split, \
 
 
 class CL4Archiver:
-    def __init__(self, url, binary_path=None, output_path='archives'):
+    def __init__(self, board: str, thread: str,
+                 binary_path=None, output_path='archives'):
         self.__base_path = output_path
         self.__path = None
-        # parse url and create API url
-        if not urlvalidate(url):
-            log("No thread url provided", 4)
-            raise Exception("No proper thread url supplied")
-        urlsplit = url_split(url)
-        if not url_split or len((urlcomponents := urlsplit.components)) < 3:
-            log("Unable to parse the url", 4)
-            return
-        self.board = urlcomponents[0]
-        self.thread = urlcomponents[2]
-        api_domain = 'a.4cdn.org'
-        components = ['https:/', api_domain] + urlcomponents[:3]
-        api_url = '/'.join(components)
-        self.url = api_url + '.json'
+
+        self.thread = thread
+        self.board = board
+        # create API url
+        self.url = f"https://a.4cdn.org/{board}/thread/{thread}.json"
 
         # clean up and define binary path
         self.__binary_path = binary_path
