@@ -17,7 +17,8 @@ from utils import log, download_file, get_remote_filesize, url_split, \
 
 
 class CL4Archiver:
-    def __init__(self, url, binary_path=None):
+    def __init__(self, url, binary_path=None, output_path='archives'):
+        self.__base_path = output_path
         self.__path = None
         # parse url and create API url
         if not urlvalidate(url):
@@ -50,7 +51,7 @@ class CL4Archiver:
     @property
     def path(self):
         if not self.__path:
-            self.__path = f"archives/{self.board}/{self.thread}"
+            self.__path = f"{self.__base_path}/{self.board}/{self.thread}"
             mkdirs(self.__path, exist_ok=True)
         return self.__path
 
@@ -182,7 +183,7 @@ class CL4Archiver:
             del_file(temporary_path)
         if file_exists(target_path):
             log("file already converted")
-            return
+            return target_path
         log(f"converting {basename(media_path)}...", 1)
         command_args = [self.__ffmpeg_path, "-i", media_path, temporary_path]
         proc = subprocess.run(command_args, capture_output=True)

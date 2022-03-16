@@ -1,28 +1,34 @@
 import sys
 import getopt
 from cl4archiver import CL4Archiver
-
-try:
-    args = getopt.getopt(sys.argv[1:], '', ["no-convert", "binpath="])
-except getopt.GetoptError as e:
-    log(e.msg, 4)
-    sys.exit(-1)
+from utils import log
 
 
-convert = True
-binpath = None
+def main():
+    try:
+        longopts = ["no-convert", "binpath=", 'output=']
+        args = getopt.getopt(sys.argv[1:], 'nbo:', longopts)
+    except getopt.GetoptError as e:
+        log(e.msg, 4)
+        sys.exit(-1)
 
-for opt in args[0]:
-    if opt[0] == '--no-convert':
-        convert = False
-    elif opt[0] == '--binpath':
-        binpath = opt[1]
+    convert = True
+    binpath = None
+    output_path = 'archives'
 
-if args[1]:
-    thread_url = args[1].pop()
-else:
-    thread_url = ''
+    for opt in args[0]:
+        if opt[0] in ['--no-convert', '-n']:
+            convert = False
+        elif opt[0] in ['--binpath', '-b']:
+            binpath = opt[1]
+        elif opt[0] in ['--output', '-o']:
+            output_path = opt[1]
+
+    if args[1]:
+        thread_url = args[1].pop()
+        c = CL4Archiver(thread_url, binpath, output_path=output_path)
+        c.archive(convert)
 
 
-c = CL4Archiver(thread_url, binpath)
-c.archive(convert)
+if __name__ == '__main__':
+    main()
