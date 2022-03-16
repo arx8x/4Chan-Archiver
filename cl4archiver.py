@@ -39,6 +39,8 @@ class CL4Archiver:
         else:
             log("ffmpeg not found", 3)
 
+        self.post_file = f"{self.path}/thread.json"
+
     @property
     def path(self):
         if not self.__path:
@@ -85,12 +87,10 @@ class CL4Archiver:
             remote_val = remote_headers.get(key_to_check)
             if not local_val or not remote_val:
                 continue
-            log(f'comparing {key_to_check}')
             if local_val != remote_val:
                 log(f"key: {key_to_check} didn't match")
                 __write()
                 return True
-        log("remote headers have no change")
         return False
 
     def __write_meta(self, headers: dict):
@@ -104,19 +104,35 @@ class CL4Archiver:
             log("Instance is not properly initialized")
             return
 
-        if not self.__is_local_outdated():
+        if not file_exists(self.post_file):
+            log("local post doesn't exist", 3)
+            should_write_posts = True
+        else:
+            should_write_posts = False
+
+        has_updates = False
+        if self.__is_local_outdated():
+            has_updates = True
+            should_write_posts = True
+        else:
             log("thread has no updates")
+
+        api_data = None
+        if has_updates or should_write_posts:
+            api_data = requests.get(self.url).content
+            post_file = f"{self.path}/thread.json"
+            with open(post_file, 'wb') as post_file:
+                log('writing post data', 1)
+                post_file.write(api_data)
+
+        if not has_updates:
             return
 
         log(f"Starting archive of thread: {self.thread} from /{self.board}/")
         if convert_media and not self.__ffmpeg_path:
             log("Cannot convert media because ffmpeg is not installed", 3)
             convert_media = False
-        api_data = requests.get(self.url).content
-        post_file = f"{self.path}/post.json"
-        with open(post_file, 'wb') as post_file:
-            log('writing post data', 1)
-            post_file.write(api_data)
+
         json_data = json.loads(api_data)
         posts = json_data['posts']
         for post in posts:
