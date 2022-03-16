@@ -121,6 +121,10 @@ class CL4Archiver:
             log("Cannot convert media because ffmpeg is not installed", 3)
             convert_media = False
         api_data = requests.get(self.url).content
+        post_file = f"{self.path}/post.json"
+        with open(post_file, 'wb') as post_file:
+            log('writing post data', 1)
+            post_file.write(api_data)
         json_data = json.loads(api_data)
         posts = json_data['posts']
         for post in posts:
@@ -163,9 +167,9 @@ class CL4Archiver:
                 print_message += " and is complete"
             log(print_message)
         if should_download_file:
-            log("Downloading...")
+            log("Downloading...", 1)
             if not download_file(url, path):
-                log("Download failed")
+                log("Download failed", 4)
                 return None
         return path
 
@@ -179,7 +183,7 @@ class CL4Archiver:
         if file_exists(target_path):
             log("file already converted")
             return
-        log(f"converting {basename(media_path)}...")
+        log(f"converting {basename(media_path)}...", 1)
         command_args = [self.__ffmpeg_path, "-i", media_path, temporary_path]
         proc = subprocess.run(command_args, capture_output=True)
         if proc.returncode:
