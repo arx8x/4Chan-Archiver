@@ -7,11 +7,7 @@ import json
 import requests
 from utils import log, download_file, get_remote_filesize, url_split, \
                   replace_extension
-# TODO: media conversion remove original
 # TODO: Windows support
-# TODO: archive post json
-# TODO: check header to see if post has new content
-# TODO: output dir
 # TODO: write file metadata and title
 
 
@@ -86,10 +82,7 @@ class CL4Archiver:
 
     def __is_local_outdated(self, only_peek=False) -> bool:
         keys_to_check = ['etag', 'last-modified', 'content-length']
-        remote_headers = requests.get(self.url).headers
-        # convert keys to lowercase for case-insensitive comparison
-        remote_headers = {key.lower(): value for key, value in
-                          remote_headers.items()}
+        remote_headers = self.__headers
         if not remote_headers:
             log("Couldn't load remote headers", 3)
             return True
@@ -97,7 +90,7 @@ class CL4Archiver:
         def __write():
             nonlocal remote_headers, self
             if not only_peek and remote_headers:
-                self.__write_meta(remote_headers)
+                self.__write_meta()
 
         # check for local meta
         meta = self.__local_meta()
@@ -118,10 +111,10 @@ class CL4Archiver:
                 return True
         return False
 
-    def __write_meta(self, headers: dict):
+    def __write_meta(self):
         path = f"{self.path}/meta"
         with open(path, 'w') as file:
-            json.dump(headers, file)
+            json.dump(self.__headers, file)
             log("writing local metadata", 1)
 
     def archive(self, convert_media=True, remove_original=False):
@@ -136,7 +129,7 @@ class CL4Archiver:
             should_write_posts = False
 
         has_updates = False
-        if self.__is_local_outdated():
+        if self.__is_local_outdated(only_peek=True):
             has_updates = True
             should_write_posts = True
         else:
@@ -173,6 +166,8 @@ class CL4Archiver:
                 if conv_path and remove_original:
                     log("removing original file", 2)
                     del_file(path)
+        # once done, write meta
+        self.__write_meta()
 
     def __path_for_binary(self, binary):
         if self.__binary_path:
