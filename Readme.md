@@ -18,6 +18,11 @@ Supply the url as the last argument.
 `python3 main.py https://boards.4channel.org/wsg/thread/4393506`
 
 **Options**
+```
+-n, --no-convert           explicitly disable media conversion  
+-b, --binpath              supply path to look for binaries
+-o, --output               output/working directory to work on
+-u, --update               check all posts previous archived and update them
+                           if new content is found
 
-`--no-convert` - explicitly disable media conversion  
-`--binpath` - supply path to look for binaries
+```
