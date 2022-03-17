@@ -48,7 +48,6 @@ def main():
 
     global convert, binpath, output_path
     update = False
-    convert = None
 
     for opt in args[0]:
         if opt[0] in ['--no-convert', '-n']:
