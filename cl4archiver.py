@@ -1,7 +1,7 @@
 import shutil
 import subprocess
 from pprint import pprint
-from os import makedirs as mkdirs, remove as del_file
+from os import makedirs as mkdirs, remove as del_file, name
 from os.path import exists as file_exists, getsize, basename
 import json
 import requests
@@ -172,6 +172,8 @@ class CL4Archiver:
     def __path_for_binary(self, binary):
         if self.__binary_path:
             path = self.__binary_path + binary
+            if osname == 'nt' and not path.endswith('.exe'):
+                path += '.exe'
             return path if file_exists(path) else None
         else:
             return shutil.which(binary)
