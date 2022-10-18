@@ -1,12 +1,12 @@
 import shutil
 import subprocess
-from pprint import pprint
+from pprint import pp
 import os
 import json
 import requests
 from utils import log, download_file, get_remote_filesize, url_split, \
                   replace_extension
-# TODO: Windows support
+from parallel_tasks import ParallelRunner, Task, Function
 # TODO: write file metadata and title
 
 
@@ -153,20 +153,39 @@ class CL4Archiver:
             log('unable to get post data', 4)
             return
         posts = api_data['posts']
+
+        def __callback(task):
+            paths = task.return_data
+            if isinstance(paths, tuple) and not all(paths):
+                log(f"Could not get media for post {post['no']}", 4)
+
+        tasks = []
         for post in posts:
-            if not (ext := post.get('ext')) or not post.get('tim'):
-                # no media in this post
-                continue
-            path = self.__download_media(post)
-            if not path:
-                continue
-            if convert_media and ext == '.webm':
-                conv_path = self.__convert_media(path)
-                if conv_path and remove_original:
-                    log("removing original file", 2)
-                    os.remove(path)
+            f = Function(self.__process_media, [post, convert_media, remove_original])
+            task = Task(target=f, name=post['no'])
+            tasks.append(task)
+
+        runner = ParallelRunner(tasks, max_parallel=4)
+        runner.run_all()
         # once done, write meta
         self.__write_meta()
+
+    def __process_media(self, post, convert_media, remove_original):
+        # TODO: make path and conv path here and pass those just as args
+        if not (ext := post.get('ext')) or not post.get('tim'):
+            # no media in this post
+            return None
+        path = self.__download_media(post)
+        if not path:
+            return (None, None)
+        if convert_media and ext == '.webm':
+            conv_path = self.__convert_media(path)
+            if conv_path and remove_original:
+                log("removing original file", 2)
+                os.remove(path)
+        else:
+            conv_path = None
+        return (path, conv_path)
 
     def __path_for_binary(self, binary):
         if self.__binary_path:
