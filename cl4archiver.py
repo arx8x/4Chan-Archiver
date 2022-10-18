@@ -1,8 +1,7 @@
 import shutil
 import subprocess
 from pprint import pprint
-from os import makedirs as mkdirs, remove as del_file, name
-from os.path import exists as file_exists, getsize, basename
+import os
 import json
 import requests
 from utils import log, download_file, get_remote_filesize, url_split, \
@@ -66,12 +65,12 @@ class CL4Archiver:
     def path(self):
         if not self.__path:
             self.__path = f"{self.__base_path}/{self.board}/{self.thread}"
-            mkdirs(self.__path, exist_ok=True)
+            os.makedirs(self.__path, exist_ok=True)
         return self.__path
 
     def __local_meta(self) -> dict:
         path = f"{self.path}/meta"
-        if not file_exists(path):
+        if not os.path.exists(path):
             return None
         with open(path, 'r') as meta_file:
             try:
@@ -122,7 +121,7 @@ class CL4Archiver:
             log("Instance is not properly initialized")
             return
 
-        if not file_exists(self.post_file):
+        if not os.path.exists(self.post_file):
             log("local post doesn't exist", 3)
             should_write_posts = True
         else:
@@ -165,16 +164,16 @@ class CL4Archiver:
                 conv_path = self.__convert_media(path)
                 if conv_path and remove_original:
                     log("removing original file", 2)
-                    del_file(path)
+                    os.remove(path)
         # once done, write meta
         self.__write_meta()
 
     def __path_for_binary(self, binary):
         if self.__binary_path:
             path = self.__binary_path + binary
-            if osname == 'nt' and not path.endswith('.exe'):
+            if os.name == 'nt' and not path.endswith('.exe'):
                 path += '.exe'
-            return path if file_exists(path) else None
+            return path if os.path.exists(path) else None
         else:
             return shutil.which(binary)
 
@@ -186,9 +185,9 @@ class CL4Archiver:
         url = f"https://i.4cdn.org/{self.board}/{filename}"
         log(f"Media {filename} for post {post.get('no')}")
         path = f"{self.path}/{filename}"
-        if file_exists(path):
+        if os.path.exists(path):
             print_message = "Local file exists"
-            local_size = getsize(path)
+            local_size = os.path.getsize(path)
             remote_size = get_remote_filesize(url)
             if local_size != remote_size:
                 print_message += " but sizes are different (remote: %s vs local: %s)" \
@@ -207,14 +206,14 @@ class CL4Archiver:
     def __convert_media(self, media_path: str):
         target_path = replace_extension(media_path, 'mp4')
         temporary_path = target_path + "__ffmpeg_tmp.mp4"
-        if file_exists(temporary_path):
+        if os.path.exists(temporary_path):
             log(
                 f'cleaning up temporary file from previous run: {temporary_path}', 2)
-            del_file(temporary_path)
-        if file_exists(target_path):
+            os.remove(temporary_path)
+        if os.path.exists(target_path):
             log("file already converted")
             return target_path
-        log(f"converting {basename(media_path)}...", 1)
+        log(f"converting {os.path.basename(media_path)}...", 1)
         command_args = [self.__ffmpeg_path, "-i", media_path, temporary_path]
         proc = subprocess.run(command_args, capture_output=True)
         if proc.returncode:
