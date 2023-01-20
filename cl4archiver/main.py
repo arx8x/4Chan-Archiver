@@ -1,7 +1,7 @@
 import sys
 import getopt
-from cl4archiver import CL4Archiver
-from utils import log
+from .cl4archiver import CL4Archiver
+from .utils import log
 from validators import url as urlvalidate
 from os import listdir
 from os.path import isdir, exists as path_exists

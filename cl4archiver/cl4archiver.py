@@ -4,7 +4,7 @@ from pprint import pp
 import os
 import json
 import requests
-from utils import log, download_file, get_remote_filesize, url_split, \
+from .utils import log, download_file, get_remote_filesize, url_split, \
                   replace_extension
 from parallel_tasks import ParallelRunner, Task, Function
 # TODO: write file metadata and title
