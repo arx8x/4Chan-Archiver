@@ -39,16 +39,24 @@ def update_threads():
 
 
 def main():
+
+    if len(sys.argv) < 2:
+        print_help()
+        sys.exit()
+
+    if '-h' in sys.argv or '--help' in sys.argv:
+        print_help()
+        sys.exit()
+
     try:
         longopts = ["no-convert", "binpath=", 'output=', 'udpate']
-        args = getopt.getopt(sys.argv[1:], 'unbo:', longopts)
+        args = getopt.getopt(sys.argv[1:], 'uhnbo:', longopts)
     except getopt.GetoptError as e:
         log(e.msg, 4)
         sys.exit(-1)
 
     global convert, binpath, output_path
     update = False
-
     for opt in args[0]:
         if opt[0] in ['--no-convert', '-n']:
             convert = False
@@ -75,6 +83,14 @@ def main():
         c = CL4Archiver(board, thread, binpath, output_path=output_path)
         c.archive(convert)
 
+def print_help():
+    print("Usage: cl4archiver [options] <thread_url>")
+    print("Options:")
+    print("  -n, --no-convert\tDon't convert media files")
+    print("  -b, --binpath\t\tPath to the youtube-dl binary")
+    print("  -o, --output\t\tOutput path for the archives")
+    print("  -u, --update\t\tUpdate existing archives")
+    print("  -h, --help\t\tShow this help message")
 
 if __name__ == '__main__':
     main()
