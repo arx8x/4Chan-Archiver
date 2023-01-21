@@ -13,8 +13,8 @@ from parallel_tasks import ParallelRunner, Task, Function
 class CL4Archiver:
     def __init__(self, board: str, thread: str,
                  binary_path=None, output_path=None):
-        self.thread = thread
-        self.board = board
+        self.__thread = thread
+        self.__board = board
 
         self.__base_path = None 
         self.__output_path = None
@@ -40,6 +40,18 @@ class CL4Archiver:
             log("ffmpeg not found", 3)
 
         self.post_file = f"{self.archive_path}/thread.json"
+
+    @property
+    def thread(self):
+        return self.__thread
+
+    @property
+    def board(self):
+        return self.__board
+
+    @property
+    def api_url(self):
+        return self.__url
 
     @property
     def output_path(self):
@@ -71,7 +83,7 @@ class CL4Archiver:
     @property
     def __headers(self):
         if not self.__headers_store:
-            r = requests.head(self.__url)
+            r = requests.head(self.api_url)
             headers = r.headers
             headers = {key.lower(): value for key, value in headers.items()}
             self.__headers_store = headers
@@ -81,7 +93,7 @@ class CL4Archiver:
     def __post_data(self):
         if not self.__post_data_store:
             try:
-                r = requests.get(self.__url)
+                r = requests.get(self.api_url)
                 data = r.content
                 self.__post_data_store = json.loads(data)
             except Exception as e:
@@ -90,6 +102,28 @@ class CL4Archiver:
                 if r:
                     r.close()
         return self.__post_data_store
+
+    @property
+    def media_count(self):
+        post_data = self.__post_data
+        if not (posts := post_data.get('posts')):
+            raise Exception("No posts data")
+        media_count = 0
+        for post in posts:
+            if post.get('tim'):
+                media_count += 1
+        return media_count
+
+    @property
+    def total_media_size(self):
+        post_data = self.__post_data
+        if not (posts := post_data.get('posts')):
+            raise Exception("No posts data")
+        total_size = 0
+        for post in posts:
+            if post.get('tim'):
+                total_size += post.get('fsize')
+        return total_size
 
 
     def __local_meta(self) -> dict:
@@ -141,7 +175,7 @@ class CL4Archiver:
             log("writing local metadata", 1)
 
     def archive(self, convert_media=True, remove_original=False):
-        if not self.thread or not self.__url:
+        if not self.thread or not self.api_url:
             log("Instance is not properly initialized")
             return
 
@@ -189,7 +223,7 @@ class CL4Archiver:
             task = Task(target=f, name=post['no'])
             tasks.append(task)
 
-        runner = ParallelRunner(tasks, max_parallel=4)
+        runner = ParallelRunner(tasks, max_parallel=1)
         runner.run_all()
         # once done, write meta
         self.__write_meta()
