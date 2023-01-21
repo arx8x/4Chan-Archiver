@@ -15,6 +15,7 @@ class CL4Archiver:
                  binary_path=None, output_path=None):
         self.__thread = thread
         self.__board = board
+        self.parallel = 1
 
         self.__base_path = None 
         self.__output_path = None
@@ -223,7 +224,7 @@ class CL4Archiver:
             task = Task(target=f, name=post['no'])
             tasks.append(task)
 
-        runner = ParallelRunner(tasks, max_parallel=1)
+        runner = ParallelRunner(tasks, max_parallel=self.parallel)
         runner.run_all()
         # once done, write meta
         self.__write_meta()
