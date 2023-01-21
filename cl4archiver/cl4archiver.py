@@ -12,14 +12,17 @@ from parallel_tasks import ParallelRunner, Task, Function
 
 class CL4Archiver:
     def __init__(self, board: str, thread: str,
-                 binary_path=None, output_path='archives'):
-        self.__base_path = output_path
-        self.__path = None
-
+                 binary_path=None, output_path=None):
         self.thread = thread
         self.board = board
+
+        self.__base_path = None 
+        self.__output_path = None
+        if output_path:
+            self.output_path = output_path
+
         # create API url
-        self.url = f"https://a.4cdn.org/{board}/thread/{thread}.json"
+        self.__url = f"https://a.4cdn.org/{board}/thread/{thread}.json"
         self.__headers_store = None
         self.__post_data_store = None
 
@@ -36,7 +39,24 @@ class CL4Archiver:
         else:
             log("ffmpeg not found", 3)
 
-        self.post_file = f"{self.path}/thread.json"
+        self.post_file = f"{self.archive_path}/thread.json"
+
+    @property
+    def output_path(self):
+        return self.__base_path
+
+    @output_path.setter
+    def output_path(self, path: str):
+        if not os.path.exists(path):
+            raise Exception(f"Path \"{path}\" doesn't exist")
+        output_path = f"{path}/{self.board}/{self.thread}"
+        os.makedirs(output_path, exist_ok=True)
+        self.__base_path = path
+        self.__output_path = output_path
+
+    @property
+    def archive_path(self):
+        return self.__output_path
 
     @classmethod
     def from_url(cls, url: str) -> 'CL4Archiver':
@@ -51,7 +71,7 @@ class CL4Archiver:
     @property
     def __headers(self):
         if not self.__headers_store:
-            r = requests.head(self.url)
+            r = requests.head(self.__url)
             headers = r.headers
             headers = {key.lower(): value for key, value in headers.items()}
             self.__headers_store = headers
@@ -61,7 +81,7 @@ class CL4Archiver:
     def __post_data(self):
         if not self.__post_data_store:
             try:
-                r = requests.get(self.url)
+                r = requests.get(self.__url)
                 data = r.content
                 self.__post_data_store = json.loads(data)
             except Exception as e:
@@ -71,15 +91,9 @@ class CL4Archiver:
                     r.close()
         return self.__post_data_store
 
-    @property
-    def path(self):
-        if not self.__path:
-            self.__path = f"{self.__base_path}/{self.board}/{self.thread}"
-            os.makedirs(self.__path, exist_ok=True)
-        return self.__path
 
     def __local_meta(self) -> dict:
-        path = f"{self.path}/meta"
+        path = f"{self.archive_path}/meta"
         if not os.path.exists(path):
             return None
         with open(path, 'r') as meta_file:
@@ -121,13 +135,13 @@ class CL4Archiver:
         return False
 
     def __write_meta(self):
-        path = f"{self.path}/meta"
+        path = f"{self.archive_path}/meta"
         with open(path, 'w') as file:
             json.dump(self.__headers, file)
             log("writing local metadata", 1)
 
     def archive(self, convert_media=True, remove_original=False):
-        if not self.thread or not self.url:
+        if not self.thread or not self.__url:
             log("Instance is not properly initialized")
             return
 
@@ -147,7 +161,7 @@ class CL4Archiver:
         api_data = None
         if has_updates or should_write_posts:
             api_data = self.__post_data
-            post_file = f"{self.path}/thread.json"
+            post_file = f"{self.archive_path}/thread.json"
             with open(post_file, 'w') as post_file:
                 log('writing post data', 1)
                 json.dump(api_data, post_file)
@@ -213,7 +227,7 @@ class CL4Archiver:
         filename = f"{name}{ext}"
         url = f"https://i.4cdn.org/{self.board}/{filename}"
         log(f"Media {filename} for post {post.get('no')}")
-        path = f"{self.path}/{filename}"
+        path = f"{self.archive_path}/{filename}"
         if os.path.exists(path):
             print_message = "Local file exists"
             local_size = os.path.getsize(path)
