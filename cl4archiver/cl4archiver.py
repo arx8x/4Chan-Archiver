@@ -38,6 +38,16 @@ class CL4Archiver:
 
         self.post_file = f"{self.path}/thread.json"
 
+    @classmethod
+    def from_url(cls, url: str) -> 'CL4Archiver':
+        urlsplit = url.split('/')
+        if not urlsplit:
+            log("Unable to parse the url", 4)
+            return None
+        board = urlsplit[3]
+        thread = urlsplit[5]
+        return CL4Archiver(board, thread)
+
     @property
     def __headers(self):
         if not self.__headers_store:
