@@ -3,35 +3,37 @@ import getopt
 from .cl4archiver import CL4Archiver
 from .utils import log
 from validators import url as urlvalidate
-from os import listdir
-from os.path import isdir, exists as path_exists
+import os
 
-convert = True
-binpath = None
-output_path = 'archives'
-
+convert = os.environ.get('CL4ARCHIVER_CONVERT', '1') == '1'
+binpath = os.environ.get('CL4ARCHIVER_BINPATH', None)
+output_path = os.environ.get('CL4ARCHIVER_OUTPUT', 'archives')
+if (threads := os.environ.get('CL4ARCHIVER_PARALLEL')):
+    threads = int(threads)
+else:
+    threads = 1
 
 def update_threads():
     log(" >>> running updater")
     global convert, binpath, output_path
-    board_dirs = listdir(output_path)
+    board_dirs = os.listdir(output_path)
     for board in board_dirs:
         board_dir = f"{output_path}/{board}"
         # skip hidden directories and . and ..
-        if not isdir(board_dir) or board[0] == '.':
+        if not os.path.isdir(board_dir) or board.startswith('.'):
             continue
-        thread_dirs = listdir(board_dir)
+        thread_dirs = os.listdir(board_dir)
         for thread in thread_dirs:
             if not thread.isnumeric():
                 log(f"\"{thread}\" isn't a valid thread id")
                 continue
             thread_dir = f"{board_dir}/{thread}"
-            if not isdir(thread_dir) or thread[0] == '.':
+            if not os.path.isdir(thread_dir) or thread.startswith('.'):
                 # skip hidden directories and . and ..
                 continue
             log(f" >>> checking {thread} from /{board}/")
             meta_file_path = f"{thread_dir}/meta"
-            if not path_exists(meta_file_path):
+            if not os.path.exists(meta_file_path):
                 log(" >>> thread has no initial data to update")
                 continue
             cl4 = CL4Archiver(board, thread, binpath, output_path)
@@ -55,9 +57,8 @@ def main():
         log(e.msg, 4)
         sys.exit(-1)
 
-    global convert, binpath, output_path
+    global convert, binpath, output_path, threads
     update = False
-    threads = 1
     for opt in args[0]:
         if opt[0] in ['--no-convert', '-n']:
             convert = False
@@ -94,7 +95,7 @@ def print_help():
     print("  -b, --binpath\t\tPath to the youtube-dl binary")
     print("  -o, --output\t\tOutput path for the archives")
     print("  -u, --update\t\tUpdate existing archives")
-    print("  -p, --parallel\t\tNumber of threads to use for media (default: 1)")
+    print("  -p, --parallel\tNumber of threads to use for media (default: 1)")
     print("  -h, --help\t\tShow this help message")
 
 if __name__ == '__main__':
