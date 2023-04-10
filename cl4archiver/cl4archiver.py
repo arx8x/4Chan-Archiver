@@ -4,12 +4,12 @@ from pprint import pp
 import os
 import json
 import requests
-from pyutils import log, download_file, get_remote_filesize, url_split, \
+from pyutils import Logger, download_file, get_remote_filesize, url_split, \
                   replace_extension
 from parallel_tasks import ParallelRunner, Task, Function
 # TODO: write file metadata and title
 
-
+logger = Logger()
 class CL4Archiver:
     def __init__(self, board: str, thread: str, output_path: str,
                  binary_path: str = None):
@@ -33,12 +33,12 @@ class CL4Archiver:
             binary_path = self.__binary_path.rstrip('/')
             binary_path += '/'
             self.__binary_path = binary_path
-            log(f"binary path set to {self.__binary_path}")
+            logger.log(f"binary path set to {self.__binary_path}")
         self.__ffmpeg_path = self.__path_for_binary('ffmpeg')
         if self.__ffmpeg_path:
-            log(f"ffmpeg path set to {self.__ffmpeg_path}")
+            logger.log(f"ffmpeg path set to {self.__ffmpeg_path}")
         else:
-            log("ffmpeg not found", 3)
+            logger.log("ffmpeg not found", 3)
 
         self.post_file = f"{self.archive_path}/thread.json"
 
@@ -75,7 +75,7 @@ class CL4Archiver:
     def from_url(cls, url: str, output_path: str) -> 'CL4Archiver':
         urlsplit = url.split('/')
         if not urlsplit:
-            log("Unable to parse the url", 4)
+            logger.log("Unable to parse the url", 4)
             return None
         board = urlsplit[3]
         thread = urlsplit[5]
@@ -102,7 +102,7 @@ class CL4Archiver:
                 data = r.content
                 self.__post_data_store = json.loads(data)
             except Exception as e:
-                log(f"Unable to load post data: {e}", 4)
+                logger.log(f"Unable to load post data: {e}", 4)
             finally:
                 if r:
                     r.close()
@@ -146,7 +146,7 @@ class CL4Archiver:
         keys_to_check = ['etag', 'last-modified', 'content-length']
         remote_headers = self.__headers
         if not remote_headers:
-            log("Couldn't load remote headers", 3)
+            logger.log("Couldn't load remote headers", 3)
             return True
 
         def __write():
@@ -157,7 +157,7 @@ class CL4Archiver:
         # check for local meta
         meta = self.__local_meta()
         if not meta:
-            log("local metadata not found", 3)
+            logger.log("local metadata not found", 3)
             __write()
             return True
 
@@ -168,7 +168,7 @@ class CL4Archiver:
             if not local_val or not remote_val:
                 continue
             if local_val != remote_val:
-                log(f"key: {key_to_check} didn't match")
+                logger.log(f"key: {key_to_check} didn't match")
                 __write()
                 return True
         return False
@@ -177,15 +177,15 @@ class CL4Archiver:
         path = f"{self.archive_path}/meta"
         with open(path, 'w') as file:
             json.dump(self.__headers, file)
-            log("writing local metadata", 1)
+            logger.log("writing local metadata", 1)
 
     def archive(self, convert_media=True, remove_original=False):
         if not self.thread or not self.api_url:
-            log("Instance is not properly initialized")
+            logger.log("Instance is not properly initialized")
             return
 
         if not os.path.exists(self.post_file):
-            log("local post doesn't exist", 3)
+            logger.log("local post doesn't exist", 3)
             should_write_posts = True
         else:
             should_write_posts = False
@@ -195,34 +195,33 @@ class CL4Archiver:
             has_updates = True
             should_write_posts = True
         else:
-            log("thread has no updates")
+            logger.log("thread has no updates")
 
         api_data = None
         if has_updates or should_write_posts:
             if not (api_data := self.__post_data):
-                log("Could not load post data", 4)
+                logger.log("Could not load post data", 4)
                 return
             post_file = f"{self.archive_path}/thread.json"
             with open(post_file, 'w') as post_file:
-                log('writing post data', 1)
+                logger.log('writing post data', 1)
                 json.dump(api_data, post_file)
 
         if not has_updates:
             return
 
-        log(f"Starting archive of thread: {self.thread} from /{self.board}/")
         if convert_media and not self.__ffmpeg_path:
-            log("Cannot convert media because ffmpeg is not installed", 3)
+            logger.log("Cannot convert media because ffmpeg is not installed", 3)
             convert_media = False
         if not api_data:
-            log('unable to get post data', 4)
+            logger.log('unable to get post data', 4)
             return
         posts = api_data['posts']
 
         def __callback(task):
             paths = task.return_data
             if isinstance(paths, tuple) and not all(paths):
-                log(f"Could not get media for post {post['no']}", 4)
+                logger.log(f"Could not get media for post {post['no']}", 4)
 
         tasks = []
         for post in posts:
@@ -246,7 +245,7 @@ class CL4Archiver:
         if convert_media and ext == '.webm':
             conv_path = self.__convert_media(path)
             if conv_path and remove_original:
-                log("removing original file", 2)
+                logger.log("removing original file", 2)
                 os.remove(path)
         else:
             conv_path = None
@@ -267,7 +266,7 @@ class CL4Archiver:
         should_download_file = True
         filename = f"{name}{ext}"
         url = f"https://i.4cdn.org/{self.board}/{filename}"
-        log(f"Media {filename} for post {post.get('no')}")
+        logger.log(f"Media {filename} for post {post.get('no')}")
         path = f"{self.archive_path}/{filename}"
         if os.path.exists(path):
             print_message = "Local file exists"
@@ -279,11 +278,11 @@ class CL4Archiver:
             else:
                 should_download_file = False
                 print_message += " and is complete"
-            log(print_message)
+            logger.log(print_message)
         if should_download_file:
-            log("Downloading...", 1)
+            logger.log("Downloading...", 1)
             if not download_file(url, path):
-                log("Download failed", 4)
+                logger.log("Download failed", 4)
                 return None
         return path
 
@@ -291,17 +290,16 @@ class CL4Archiver:
         target_path = replace_extension(media_path, 'mp4')
         temporary_path = target_path + "__ffmpeg_tmp.mp4"
         if os.path.exists(temporary_path):
-            log(
-                f'cleaning up temporary file from previous run: {temporary_path}', 2)
+            logger.log(f'cleaning up temporary file from previous run: {temporary_path}', 2)
             os.remove(temporary_path)
         if os.path.exists(target_path):
-            log("file already converted")
+            logger.log("file already converted")
             return target_path
-        log(f"converting {os.path.basename(media_path)}...", 1)
+        logger.log(f"converting {os.path.basename(media_path)}...", 1)
         command_args = [self.__ffmpeg_path, "-i", media_path, temporary_path]
         proc = subprocess.run(command_args, capture_output=True)
         if proc.returncode:
-            log("conversion failed", 4)
+            logger.log("conversion failed", 4)
             return None
         else:
             shutil.move(temporary_path, target_path)
