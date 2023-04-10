@@ -15,7 +15,11 @@ source cl4archiver/bin/activate/
 
 Supply the url as the last argument.
 
-`python3 main.py https://boards.4channel.org/wsg/thread/4393506`
+`cl4archiver https://boards.4channel.org/wsg/thread/4393506`
+
+`cl4archiver -u` 
+
+`cl4archiver -p 8 -o /tmp/archives/ -n https://boards.4channel.org/wsg/thread/4393506`
 
 **Options**
 ```
@@ -24,5 +28,6 @@ Supply the url as the last argument.
 -o, --output               output/working directory to work on
 -u, --update               check all posts previous archived and update them
                            if new content is found
+-p, --parallel             number of threads to use for media (default: 1)
 
 ```
