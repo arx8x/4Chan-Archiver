@@ -7,7 +7,7 @@ import os
 
 convert = os.environ.get('CL4ARCHIVER_CONVERT', '1') == '1'
 binpath = os.environ.get('CL4ARCHIVER_BINPATH', None)
-output_path = os.environ.get('CL4ARCHIVER_OUTPUT', 'archives')
+output_path = os.environ.get('CL4ARCHIVER_OUTPUT')
 if (threads := os.environ.get('CL4ARCHIVER_PARALLEL')):
     threads = int(threads)
 else:
@@ -84,6 +84,11 @@ def main():
             sys.exit(-1)
         board = urlsplit[3]
         thread = urlsplit[5]
+        # default output path
+        if not output_path:
+            output_path = '4chan_archives'
+            if not os.path.exists(output_path):
+                os.mkdir(output_path)
         c = CL4Archiver(board, thread, binpath, output_path=output_path)
         c.parallel = threads
         c.archive(convert)

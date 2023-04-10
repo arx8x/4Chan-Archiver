@@ -4,15 +4,15 @@ from pprint import pp
 import os
 import json
 import requests
-from .utils import log, download_file, get_remote_filesize, url_split, \
+from pyutils import log, download_file, get_remote_filesize, url_split, \
                   replace_extension
 from parallel_tasks import ParallelRunner, Task, Function
 # TODO: write file metadata and title
 
 
 class CL4Archiver:
-    def __init__(self, board: str, thread: str,
-                 binary_path=None, output_path=None):
+    def __init__(self, board: str, thread: str, output_path: str,
+                 binary_path: str = None):
         self.__thread = thread
         self.__board = board
         self.parallel = 1
@@ -72,7 +72,7 @@ class CL4Archiver:
         return self.__output_path
 
     @classmethod
-    def from_url(cls, url: str) -> 'CL4Archiver':
+    def from_url(cls, url: str, output_path: str) -> 'CL4Archiver':
         urlsplit = url.split('/')
         if not urlsplit:
             log("Unable to parse the url", 4)
@@ -85,6 +85,8 @@ class CL4Archiver:
     def __headers(self):
         if not self.__headers_store:
             r = requests.head(self.api_url)
+            if r.status_code != 200:
+                return None
             headers = r.headers
             headers = {key.lower(): value for key, value in headers.items()}
             self.__headers_store = headers
@@ -95,10 +97,12 @@ class CL4Archiver:
         if not self.__post_data_store:
             try:
                 r = requests.get(self.api_url)
+                if r.status_code != 200:
+                    return None
                 data = r.content
                 self.__post_data_store = json.loads(data)
             except Exception as e:
-                log(e, 4)
+                log(f"Unable to load post data: {e}", 4)
             finally:
                 if r:
                     r.close()
@@ -195,7 +199,9 @@ class CL4Archiver:
 
         api_data = None
         if has_updates or should_write_posts:
-            api_data = self.__post_data
+            if not (api_data := self.__post_data):
+                log("Could not load post data", 4)
+                return
             post_file = f"{self.archive_path}/thread.json"
             with open(post_file, 'w') as post_file:
                 log('writing post data', 1)
