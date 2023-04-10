@@ -79,7 +79,7 @@ class CL4Archiver:
             return None
         board = urlsplit[3]
         thread = urlsplit[5]
-        return CL4Archiver(board, thread)
+        return CL4Archiver(board, thread, output_path=output_path)
 
     @property
     def __headers(self):
