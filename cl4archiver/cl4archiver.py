@@ -218,18 +218,26 @@ class CL4Archiver:
             return
         posts = api_data['posts']
 
+        total_media_done = 0
+        media_posts = [p for p in posts if p.get('ext') and p.get('tim')]
+        total_media_posts = len(media_posts)
+
+        logger.section_title("Archiving media")
+        logger.log(f"Found {total_media_posts} media items in the thread")
+
         def __callback(task):
-            paths = task.return_data
-            if isinstance(paths, tuple) and not all(paths):
-                logger.log(f"Could not get media for post {post['no']}", 4)
+            nonlocal total_media_done, total_media_posts
+            total_media_done += 1
+            percent_done = round((total_media_done / total_media_posts) * 100)
+            logger.log(f"Processed media {total_media_done}/{total_media_posts} ({percent_done}%)")
 
         tasks = []
-        for post in posts:
+        for post in media_posts:
             f = Function(self.__process_media, [post, convert_media, remove_original])
             task = Task(target=f, name=post['no'])
             tasks.append(task)
 
-        runner = ParallelRunner(tasks, max_parallel=self.parallel)
+        runner = ParallelRunner(tasks, max_parallel=self.parallel, callback=__callback)
         runner.run_all()
         # once done, write meta
         self.__write_meta()
