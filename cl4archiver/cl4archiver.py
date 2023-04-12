@@ -173,6 +173,14 @@ class CL4Archiver:
                 return True
         return False
 
+    def __media_path_for_post(self, post) -> str:
+        if (media_id := post.get('tim')) and (ext := post.get('ext')):
+            return os.path.join(self.archive_path, f"{media_id}{ext}")
+
+    def __conv_path_for_post(self, post) -> str:
+        if (media_id := post.get('tim')) and (post_id := post.get('no')):
+            return os.path.join(self.archive_path, f"{media_id}.mp4")
+
     def __write_meta(self):
         path = f"{self.archive_path}/meta"
         with open(path, 'w') as file:
@@ -265,14 +273,26 @@ class CL4Archiver:
         if not (ext := post.get('ext')) or not post.get('tim'):
             # no media in this post
             return None
-        path = self.__download_media(post)
-        if not path:
+        do_download = True
+        download_path = self.__media_path_for_post(post)
+        conv_path = self.__conv_path_for_post(post)
+        # handle a special case where the converted media exists and
+        # re-download isn't necessary. 
+        # Otherwise it would download the file, skip the 
+        # conversion (since it's already done) and remove the file
+        # Essentially, the file is downloaded, not used in any way and then removed
+        if convert_media and remove_original:
+            if os.path.exists(convert_media):
+                logger.log("Converted file exists. Skipping download")
+                do_download = False
+        if do_download and not (path := self.__download_media(post, download_path)):
             return (None, None)
         if convert_media and ext == '.webm':
-            conv_path = self.__convert_media(path)
+            conv_path = self.__convert_media(download_path, conv_path)
             if conv_path and remove_original:
-                logger.log("removing original file", 2)
-                os.remove(path)
+                if os.path.exists(download_path):
+                    logger.log("removing original file", 2)
+                    os.unlink(download_path)
                 path = None
         else:
             conv_path = None
@@ -287,14 +307,13 @@ class CL4Archiver:
         else:
             return shutil.which(binary)
 
-    def __download_media(self, post) -> str:
+    def __download_media(self, post: dict, path: str) -> str:
         if not (ext := post.get('ext')) or not (name := post.get('tim')):
             return None
         should_download_file = True
         filename = f"{name}{ext}"
         url = f"https://i.4cdn.org/{self.board}/{filename}"
         logger.log(f"Media {filename} for post {post.get('no')}")
-        path = f"{self.archive_path}/{filename}"
         if os.path.exists(path):
             print_message = "Local file exists"
             local_size = os.path.getsize(path)
@@ -313,8 +332,7 @@ class CL4Archiver:
                 return None
         return path
 
-    def __convert_media(self, media_path: str):
-        target_path = replace_extension(media_path, 'mp4')
+    def __convert_media(self, media_path: str, target_path: str) -> bool:
         temporary_path = target_path + "__ffmpeg_tmp.mp4"
         if os.path.exists(temporary_path):
             logger.log(f'cleaning up temporary file from previous run: {temporary_path}', 2)
@@ -323,7 +341,8 @@ class CL4Archiver:
             logger.log("file already converted")
             return target_path
         logger.log(f"converting {os.path.basename(media_path)}...", 1)
-        command_args = [self.__ffmpeg_path, "-i", media_path, temporary_path]
+        command_args = [self.__ffmpeg_path, "-i", media_path, 
+                        '-pix_fmt', 'yuv420p', temporary_path]
         proc = subprocess.run(command_args, capture_output=True)
         if proc.returncode:
             logger.log("conversion failed", 4)
