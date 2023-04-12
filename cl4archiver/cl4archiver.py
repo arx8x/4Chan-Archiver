@@ -4,6 +4,7 @@ from pprint import pp
 import os
 import json
 import requests
+from typing import List, Dict, Tuple, Optional
 from pyutils import Logger, download_file, get_remote_filesize, url_split, \
                   replace_extension
 from parallel_tasks import ParallelRunner, Task, Function
@@ -250,7 +251,7 @@ class CL4Archiver:
         # once done, write meta
         self.__write_meta()
 
-    def get_single_media(self, post_id: int, convert: bool = True, remove_original=False) -> str:
+    def get_single_media(self, post_id: int, convert: bool = True, remove_original=False) -> Tuple[str, str]:
         if not self.thread or not self.api_url:
             logger.log("Instance is not properly initialized", 4)
             return
@@ -268,7 +269,7 @@ class CL4Archiver:
             return
         return self.__process_media(post, convert, remove_original)
         
-    def __process_media(self, post, convert_media, remove_original):
+    def __process_media(self, post, convert_media, remove_original) -> Tuple[str, str]:
         # TODO: make path and conv path here and pass those just as args
         if not (ext := post.get('ext')) or not post.get('tim'):
             # no media in this post
@@ -296,9 +297,11 @@ class CL4Archiver:
                 path = None
         else:
             conv_path = None
+        if remove_original and not conv_path:
+            logger.log("Original won't be removed because no conversion was done", 3)
         return (path, conv_path)
 
-    def __path_for_binary(self, binary):
+    def __path_for_binary(self, binary) -> str:
         if self.__binary_path:
             path = self.__binary_path + binary
             if os.name == 'nt' and not path.endswith('.exe'):
@@ -307,9 +310,9 @@ class CL4Archiver:
         else:
             return shutil.which(binary)
 
-    def __download_media(self, post: dict, path: str) -> str:
+    def __download_media(self, post: dict, path: str) -> bool:
         if not (ext := post.get('ext')) or not (name := post.get('tim')):
-            return None
+            return False
         should_download_file = True
         filename = f"{name}{ext}"
         url = f"https://i.4cdn.org/{self.board}/{filename}"
@@ -318,19 +321,21 @@ class CL4Archiver:
             print_message = "Local file exists"
             local_size = os.path.getsize(path)
             remote_size = get_remote_filesize(url)
-            if local_size != remote_size:
-                print_message += " but sizes are different (remote: %s vs local: %s)" \
-                    % (remote_size, local_size)
-            else:
+            # if local file is complete, return success without re-download
+            if local_size == remote_size:
                 should_download_file = False
-                print_message += " and is complete"
+                logger.log(f"{print_message} and is complete")
+                return True
+
+            print_message += " but sizes are different (remote: %s vs local: %s)" \
+                    % (remote_size, local_size)
             logger.log(print_message)
         if should_download_file:
             logger.log("Downloading...", 1)
-            if not download_file(url, path):
-                logger.log("Download failed", 4)
-                return None
-        return path
+            if download_file(url, path):
+                return True
+        logger.log("Download failed", 4)
+        return False
 
     def __convert_media(self, media_path: str, target_path: str) -> bool:
         temporary_path = target_path + "__ffmpeg_tmp.mp4"
@@ -344,9 +349,8 @@ class CL4Archiver:
         command_args = [self.__ffmpeg_path, "-i", media_path, 
                         '-pix_fmt', 'yuv420p', temporary_path]
         proc = subprocess.run(command_args, capture_output=True)
-        if proc.returncode:
-            logger.log("conversion failed", 4)
-            return None
-        else:
+        if not proc.returncode:
             shutil.move(temporary_path, target_path)
-            return target_path
+            return True
+        logger.log("conversion failed", 4)
+        return False
