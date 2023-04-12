@@ -242,6 +242,24 @@ class CL4Archiver:
         # once done, write meta
         self.__write_meta()
 
+    def get_single_media(self, post_id: int, convert: bool = True, remove_original=False) -> str:
+        if not self.thread or not self.api_url:
+            logger.log("Instance is not properly initialized", 4)
+            return
+        if not (api_data := self.__post_data):
+            logger.log("post data can't be retrieved from API", 4)
+            return 
+        if not (posts := api_data.get('posts')):
+            logger.log(f"Could not get posts data from API data", 4)
+            return
+        for post in posts:
+            if post['no'] == post_id:
+                break
+        else:
+            logger.log(f"Post id {post_id} not found in thread")
+            return
+        return self.__process_media(post, convert, remove_original)
+        
     def __process_media(self, post, convert_media, remove_original):
         # TODO: make path and conv path here and pass those just as args
         if not (ext := post.get('ext')) or not post.get('tim'):
@@ -255,6 +273,7 @@ class CL4Archiver:
             if conv_path and remove_original:
                 logger.log("removing original file", 2)
                 os.remove(path)
+                path = None
         else:
             conv_path = None
         return (path, conv_path)
