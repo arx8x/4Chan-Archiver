@@ -18,11 +18,11 @@ logger = Logger()
 class URLSpecs:
     base: str
     board: str
-    thread: str 
-    post: Optional[str] = None
+    thread: int 
+    post: Optional[int] = None
 
 class CL4Archiver:
-    def __init__(self, board: str, thread: str, output_path: str,
+    def __init__(self, board: str, thread: int, output_path: str,
                  binary_path: str = None):
         self.__thread = thread
         self.__board = board
@@ -93,10 +93,10 @@ class CL4Archiver:
         specs = URLSpecs(
             base=parts.netloc,
             board=path_parts[1],
-            thread=path_parts[3]
+            thread=int(path_parts[3])
         )
         if parts.fragment:
-            specs.post = parts.fragment[1:]
+            specs.post = int(parts.fragment[1:])
         return specs
 
     @classmethod
@@ -305,14 +305,14 @@ class CL4Archiver:
         # conversion (since it's already done) and remove the file
         # Essentially, the file is downloaded, not used in any way and then removed
         if convert_media and remove_original:
-            if os.path.exists(convert_media):
+            if os.path.exists(conv_path):
                 logger.log("Converted file exists. Skipping download")
                 do_download = False
-        if do_download and not (path := self.__download_media(post, download_path)):
+        if do_download and not self.__download_media(post, download_path):
             return (None, None)
         if convert_media and ext == '.webm':
-            conv_path = self.__convert_media(download_path, conv_path)
-            if conv_path and remove_original:
+            conv_success = self.__convert_media(download_path, conv_path)
+            if conv_success and remove_original:
                 if os.path.exists(download_path):
                     logger.log("removing original file", 2)
                     os.unlink(download_path)
@@ -321,7 +321,7 @@ class CL4Archiver:
             conv_path = None
         if remove_original and not conv_path:
             logger.log("Original won't be removed because no conversion was done", 3)
-        return (path, conv_path)
+        return (download_path, conv_path)
 
     def __path_for_binary(self, binary) -> str:
         if self.__binary_path:
