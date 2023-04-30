@@ -8,9 +8,19 @@ from typing import List, Dict, Tuple, Optional
 from pyutils import Logger, download_file, get_remote_filesize, url_split, \
                   replace_extension
 from parallel_tasks import ParallelRunner, Task, Function
+from dataclasses import dataclass
+from urllib.parse import urlparse
 # TODO: write file metadata and title
 
 logger = Logger()
+
+@dataclass
+class URLSpecs:
+    base: str
+    board: str
+    thread: str 
+    post: Optional[str] = None
+
 class CL4Archiver:
     def __init__(self, board: str, thread: str, output_path: str,
                  binary_path: str = None):
@@ -73,14 +83,26 @@ class CL4Archiver:
         return self.__output_path
 
     @classmethod
-    def from_url(cls, url: str, output_path: str) -> 'CL4Archiver':
-        urlsplit = url.split('/')
-        if not urlsplit:
-            logger.log("Unable to parse the url", 4)
+    def parse_url(cls, url: str):
+        parts = urlparse(url)
+        if not parts.path:
             return None
-        board = urlsplit[3]
-        thread = urlsplit[5]
-        return CL4Archiver(board, thread, output_path=output_path)
+        path_parts = parts.path.split('/')
+        if len(path_parts) < 4:
+            return None
+        specs = URLSpecs(
+            base=parts.netloc,
+            board=path_parts[1],
+            thread=path_parts[3]
+        )
+        if parts.fragment:
+            specs.post = parts.fragment[1:]
+        return specs
+
+    @classmethod
+    def from_url(cls, url: str, output_path: str) -> 'CL4Archiver':
+        comps = cls.parse_url(url)
+        return CL4Archiver(comps.board, comps.thread, output_path=output_path)
 
     @property
     def __headers(self):
