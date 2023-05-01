@@ -95,8 +95,9 @@ class CL4Archiver:
             board=path_parts[1],
             thread=int(path_parts[3])
         )
-        if parts.fragment:
-            specs.post = int(parts.fragment[1:])
+        if (frag := parts.fragment):
+            frag = frag if frag[0].isnumeric() else frag[1:]
+            specs.post = int(frag)
         return specs
 
     @classmethod
@@ -274,28 +275,29 @@ class CL4Archiver:
         self.__write_meta()
 
     def get_single_media(self, post_id: int, convert: bool = True, remove_original=False) -> Tuple[str, str]:
+        default_ret = (None, None)
         if not self.thread or not self.api_url:
             logger.log("Instance is not properly initialized", 4)
-            return
+            return default_ret
         if not (api_data := self.__post_data):
             logger.log("post data can't be retrieved from API", 4)
-            return 
+            return default_ret
         if not (posts := api_data.get('posts')):
             logger.log(f"Could not get posts data from API data", 4)
-            return
+            return default_ret
         for post in posts:
             if post['no'] == post_id:
                 break
         else:
             logger.log(f"Post id {post_id} not found in thread")
-            return
+            return default_ret
         return self.__process_media(post, convert, remove_original)
         
     def __process_media(self, post, convert_media, remove_original) -> Tuple[str, str]:
         # TODO: make path and conv path here and pass those just as args
         if not (ext := post.get('ext')) or not post.get('tim'):
             # no media in this post
-            return None
+            return (None, None)
         do_download = True
         download_path = self.__media_path_for_post(post)
         conv_path = self.__conv_path_for_post(post)
@@ -316,7 +318,7 @@ class CL4Archiver:
                 if os.path.exists(download_path):
                     logger.log("removing original file", 2)
                     os.unlink(download_path)
-                path = None
+                download_path = None
         else:
             conv_path = None
         if remove_original and not conv_path:
