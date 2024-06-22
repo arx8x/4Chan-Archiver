@@ -356,7 +356,7 @@ class CL4Archiver:
             logger.log(print_message)
         if should_download_file:
             logger.log("Downloading...", 1)
-            if download_file(url, path):
+            if download_file(url, path, [('User-Agent', 'cl4archiver')]):
                 return True
         logger.log("Download failed", 4)
         return False
