@@ -319,6 +319,8 @@ class CL4Archiver:
                     logger.log("removing original file", 2)
                     os.unlink(download_path)
                 download_path = None
+        elif convert_media and ext == '.mp4':
+            return (download_path, download_path)
         else:
             conv_path = None
         if remove_original and not conv_path:
